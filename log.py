@@ -58,9 +58,6 @@ def main():
 
         """ Process the Dictionary. """
         nginx_dict = process_dict(in_dictionary = nginx_dict)
-
-        #print(pandas.DataFrame(nginx_dict)["request"].value_counts())
-        return (3)
         
         """ Dump this to a CSV. """
         convert_to_csv(input_list = nginx_dict, salt_value = salt_value, 
@@ -99,9 +96,6 @@ def process_dict(in_dictionary = None):
     """ Create a new Dictionary List for output. """
     new_list = []
 
-    """ Compile the regex to get the query string. """
-    # query_regex = re.compile(r'(\?|\&)([^=]+)\=([^&]+)')
-
     """ Iterate over the Dictionary List. """
     for each_dictionary in in_dictionary:
 
@@ -117,7 +111,7 @@ def process_dict(in_dictionary = None):
 
                 """ Strip that from the front. """
                 stripped_request = each_dictionary["request"]\
-                    .lstrip("GET /dataset?")
+                    .lstrip("GET /dataset?").rstrip(" HTTP/1.1")
 
                 """ Pull out the query parameters. """
                 query_params = stripped_request.split("&")
@@ -130,19 +124,35 @@ def process_dict(in_dictionary = None):
                 
                     """ If the first (key) value is either 'q' or 'page', we 
                     are interested. If not, ignore it. """
-                    if (parameter_set[0] == "q"):
+                    if ((parameter_set[0] == "q") and \
+                        (len(parameter_set) > 1)):
 
                         """ Pull out the 'q' value and add it to our 'return 
                         dictionary'. """
-                        new_dictionary["query"] = parameter_set[1]
-                    
-                    """ Now, consider page. """
-                    elif (parameter_set[0] == "page"):
+                        new_dictionary["query"] = parameter_set[1].replace("+", 
+                            " ")
 
-                        """ Pull out the value and add it to our 'return 
-                        dictionary'. """
-                        new_dictionary["page"] = parameter_set[0]
-        
+                    """ Now, consider page. """
+                    if ((parameter_set[0] == "page") and \
+                        (len(parameter_set) > 1)):
+
+                        """ If empty, consider it one. """
+                        if (parameter_set[1] == ""):
+
+                            """ Put the value in. """
+                            new_dictionary["page"] = 1
+
+                        else:
+
+                            """ Pull out the value and add it to our 'return 
+                            dictionary'. """
+                            new_dictionary["page"] = int(parameter_set[1])
+                    
+                    else:
+
+                        """ Otherwise, the page is 1. """
+                        new_dictionary["page"] = 1      
+  
         """ If we have the IP address, add it. """
         if ("remoteAddress" in each_dictionary):
 
@@ -155,28 +165,43 @@ def process_dict(in_dictionary = None):
             """ Do the magic. """
             new_dictionary["time"] = each_dictionary["timeLocal"]
         
-        """ Put that dictionary into the big one. """
-        new_list.append(new_dictionary)
+        """ Put that dictionary into the big one, if a query was specified. """
+        if (("query" in new_dictionary) and (new_dictionary["query"] != "")):
+        
+            """ Go and do it. """
+            new_list.append(new_dictionary)
     
     """ Return that to the caller. """
     return(new_list)
                 
 
-def convert_to_csv(input_list = None, salt_value = None, out_filename = None, 
-    fields = ["remoteAddress", "timeLocal", "request", "status"]):
+def convert_to_csv(input_list = None, salt_value = None, out_filename = None):
     
     """ Convert supplied list to a dataframe. """
     df_data = pandas.DataFrame(input_list)
 
     """ Obfuscate the IP addresses of each user, using a salted hash. """
-    df_data["remoteAddress"] = df_data["remoteAddress"]\
-        .map(lambda v: hashlib.sha512(str(v) + salt_value).hexdigest())
+    df_data["ip"] = df_data["ip"].map(lambda v: hashlib.sha512(bytes(
+        v + salt_value, 'ascii')).hexdigest())
 
-    """ Remove unnecessary fields. """
-    df_data = df_data[fields]
+    """ Group by the Query and the User. """
+    df_data = df_data.groupby(["ip", "query"])["page"].max()
+
+    """ Define the aggregation table\ """
+
+    """ Group by the Query and get the average number of pages and total number 
+    of searches. """
+    df_data = df_data.groupby(["query"]).agg({"page": [("count", "count"), 
+        ("mean", "mean")]}).droplevel(0, axis = 1).reset_index()
+
+    """ Round the mean to 1dp. """
+    df_data["mean"] = df_data["mean"].round(1)
+
+    """ Sort by the Count then the Mean. """
+    df_data = df_data.sort_values(["count", "mean"])
 
     """ Dump the DataFrame to file. """
-    df_data.to_csv(filename = out_filename)
+    df_data.to_csv(out_filename, index = None)
 
 
 if __name__ == "__main__":
