@@ -164,9 +164,15 @@ def process_dict(in_dictionary = None):
 
             """ Do the magic. """
             new_dictionary["time"] = each_dictionary["timeLocal"]
+
+        """ Define the variable user_agent as the UserAgent string, for a bit 
+        of extra clarity. """
+        user_agent = each_dictionary["httpUserAgent"]
         
         """ Put that dictionary into the big one, if a query was specified. """
-        if (("query" in new_dictionary) and (new_dictionary["query"] != "")):
+        if (("query" in new_dictionary) and (new_dictionary["query"] != "")\
+            and ("bot" not in user_agent.lower()) and ("crawl" not in \
+            user_agent.lower() and ("spider" not in user_agent.lower()))):
         
             """ Go and do it. """
             new_list.append(new_dictionary)
