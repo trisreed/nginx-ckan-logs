@@ -11,6 +11,6 @@ behind an NGiИX web server.
 * `<OUTPUT_FILE>`: Path to write the output of the analysis.
 
 ## Maintenance
-Program maintained by Tristan Reed, GitHub username 'trisreed'. Free to use 
+Program maintained by Tristan Reed, GitHub username `trisreed`. Free to use 
 under GPLv3. Code suffers from many bugs, use at own risk, also ignore my 
-awful checking history.
+awful commit history.
