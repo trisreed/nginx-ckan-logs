@@ -185,23 +185,30 @@ def convert_to_csv(input_list = None, salt_value = None, out_filename = None):
         v + salt_value, 'ascii')).hexdigest())
 
     """ Group by the Query and the User. """
-    df_data = df_data.groupby(["ip", "query"])["page"].max()
-
-    """ Define the aggregation table\ """
+    df_data = df_data.groupby(["ip", "query"])["page"].max().reset_index()
 
     """ Group by the Query and get the average number of pages and total number 
     of searches. """
-    df_data = df_data.groupby(["query"]).agg({"page": [("count", "count"), 
-        ("mean", "mean")]}).droplevel(0, axis = 1).reset_index()
+    df_data = df_data.groupby(["query"]).apply(_do_aggregation)\
+        .reset_index()
 
     """ Round the mean to 1dp. """
     df_data["mean"] = df_data["mean"].round(1)
 
     """ Sort by the Count then the Mean. """
-    df_data = df_data.sort_values(["count", "mean"])
+    df_data = df_data.sort_values(["count", "mean"], ascending = False)
 
     """ Dump the DataFrame to file. """
     df_data.to_csv(out_filename, index = None)
+
+
+def _do_aggregation(x):
+
+    """ Define the columns and operations. """
+    names = {'count': x['page'].count(), 'mean':  x['page'].mean()}
+
+    """ Return to the Caller. """
+    return pandas.Series(names, index = ['count', 'mean'])
 
 
 if __name__ == "__main__":
